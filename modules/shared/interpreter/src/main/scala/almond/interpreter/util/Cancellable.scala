@@ -41,7 +41,7 @@ final class Cancellable[A, B](
     ioOrFutureCompletion match {
       case Left(io) => io
       case Right(f) =>
-        IO.async[B] { cb =>
+        IO.async_[B] { cb =>
           import scala.concurrent.ExecutionContext.Implicits.global // meh
           f.future.onComplete { res =>
             runningCompletionLock.synchronized {

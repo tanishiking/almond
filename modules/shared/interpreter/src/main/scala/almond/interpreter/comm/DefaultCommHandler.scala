@@ -6,7 +6,7 @@ import almond.interpreter.util.DisplayDataOps._
 import almond.interpreter.Message
 import almond.protocol._
 import cats.effect.IO
-import fs2.concurrent.Queue
+import cats.effect.std.Queue
 
 import scala.concurrent.ExecutionContext
 
@@ -40,11 +40,13 @@ final class DefaultCommHandler(
     commTargetManager.removeId(id)
 
 
-  private def publish[T: JsonValueCodec](messageType: MessageType[T], content: T, metadata: Array[Byte]): Unit =
+  private def publish[T: JsonValueCodec](messageType: MessageType[T], content: T, metadata: Array[Byte]): Unit = {
+    import cats.effect.unsafe.implicits.global
     message
       .publish(messageType, content, RawJson(metadata))
       .enqueueOn(Channel.Publish, queue)
       .unsafeRunSync()
+  }
 
   def commOpen(targetName: String, id: String, data: Array[Byte], metadata: Array[Byte]): Unit =
     publish(Comm.openType, Comm.Open(id, targetName, RawJson(data)), metadata)

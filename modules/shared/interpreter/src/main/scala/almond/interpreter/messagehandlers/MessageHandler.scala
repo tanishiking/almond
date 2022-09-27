@@ -1,12 +1,12 @@
 package almond.interpreter.messagehandlers
 
-import fs2.concurrent.Queue
 import fs2.Stream
 import almond.channels.{Channel, Message => RawMessage}
 import almond.interpreter.Message
 import almond.logger.{Logger, LoggerContext}
 import almond.protocol.{MessageType, RawJson, Status}
 import cats.effect.IO
+import cats.effect.std.Queue
 
 import scala.concurrent.ExecutionContext
 
@@ -151,8 +151,8 @@ object MessageHandler {
 
     val task = for {
       queue <- {
-        implicit val shift = IO.contextShift(queueEc)
-        Queue.bounded[IO, (Channel, RawMessage)](40) // FIXME sizing?
+        // implicit val shift = IO.contextShift(queueEc)
+        Queue.bounded[IO, (Channel, RawMessage)](40).evalOn(queueEc) // FIXME sizing?
       }
       main = run(queue)
       _ <- {
@@ -164,7 +164,7 @@ object MessageHandler {
             }
           }
           _ <- status(queue, Status.idle)
-          _ <- queue.enqueue1(poisonPill)
+          _ <- queue.offer(poisonPill)
         } yield ()
 
         val t0 = t.attempt.flatMap {
@@ -175,15 +175,14 @@ object MessageHandler {
             IO.unit
         }
 
-        {
-          implicit val shift = IO.contextShift(queueEc) // not sure that's the right EC for that
-          t0.start
-        }
+        t0.start.evalOn(queueEc)
       }
-    } yield queue.dequeue.takeWhile(_ != poisonPill)
+    } yield ???
+    //yield queue.dequeue.takeWhile(_ != poisonPill)
 
-    Stream.eval(task)
-      .flatMap(x => x)
+    ???
+    // Stream.eval(task)
+    //   .flatMap(x => x)
   }
 
   def discard(pf: PartialFunction[(Channel, Message[RawJson]), Unit]): MessageHandler =

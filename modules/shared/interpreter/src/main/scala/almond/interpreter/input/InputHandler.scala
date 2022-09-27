@@ -55,6 +55,7 @@ final class InputHandler(
 
           {
             implicit val ec = futureEc
+            import cats.effect.unsafe.implicits.global
             for {
               _ <- send(Channel.Input, msg).unsafeToFuture()
               s <- p.future

@@ -158,14 +158,14 @@ final class ZeromqConnection(
 
     val t = channels.foldLeft(IO.unit)((acc, c) => acc *> c.open)
 
-    val other = IO.shift(threads.selectorOpenCloseEc) *> IO {
+    val other = IO {
       synchronized {
         for (t <- heartBeatThreadOpt if t.getState == Thread.State.NEW)
           t.start()
         if (selectorOpt.isEmpty)
           selectorOpt = Some(Selector.open())
       }
-    }
+    }.evalOn(threads.selectorOpenCloseEc)
 
     log0 *> t *> other
   }
@@ -178,7 +178,7 @@ final class ZeromqConnection(
   }
 
   def tryRead(channels: Seq[Channel], pollingDelay: Duration): IO[Option[(Channel, Message)]] =
-    IO.shift(threads.pollingEc) *> IO {
+    IO {
 
       // log.debug(s"Trying to read on $params from $channels") // un-comment if you're, like, really debugging hard
 
@@ -200,7 +200,7 @@ final class ZeromqConnection(
               .map(_.map((channel, _)))
         }
         .getOrElse(IO.pure(None))
-    }.flatMap(identity)
+    }.flatMap(identity).evalOn(threads.pollingEc)
 
   val close: IO[Unit] = {
 
@@ -215,7 +215,7 @@ final class ZeromqConnection(
 
     val t = channels.foldLeft(IO.unit)((acc, c) => acc *> c.close)
 
-    val other = IO.shift(threads.selectorOpenCloseEc) *> IO {
+    val other = IO {
       log.debug(s"Closing things for $params")
 
       heartBeatThreadOpt.foreach(_.interrupt())
@@ -224,7 +224,7 @@ final class ZeromqConnection(
       selectorOpt = None
 
       log.debug(s"Closed channels for $params")
-    }
+    }.evalOn(threads.selectorOpenCloseEc)
 
     log0 *> t *> other
   }
@@ -242,7 +242,7 @@ object ZeromqConnection {
     threads: ZeromqThreads,
     logCtx: LoggerContext
   ): IO[ZeromqConnection] =
-    IO.shift(threads.selectorOpenCloseEc) *> IO(
+    IO(
       new ZeromqConnection(
         connection,
         bind,
@@ -250,6 +250,6 @@ object ZeromqConnection {
         threads,
         logCtx
       )
-    )
+    ).evalOn(threads.selectorOpenCloseEc)
 
 }

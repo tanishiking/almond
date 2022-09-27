@@ -10,6 +10,7 @@ import almond.kernel.install.Install
 import almond.logger.{Level, LoggerContext}
 import almond.util.ThreadUtil.singleThreadedExecutionContext
 import caseapp._
+import cats.effect.IOApp
 
 import scala.language.reflectiveCalls
 import scala.concurrent.ExecutionContext

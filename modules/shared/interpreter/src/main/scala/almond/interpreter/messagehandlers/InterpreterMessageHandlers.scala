@@ -12,7 +12,8 @@ import almond.protocol.Codecs.unitCodec
 import cats.effect.IO
 import cats.syntax.apply._
 import fs2.Stream
-import fs2.concurrent.{Queue, SignallingRef}
+import cats.effect.std.Queue
+import fs2.concurrent.SignallingRef
 
 import scala.concurrent.ExecutionContext
 
@@ -36,7 +37,7 @@ final case class InterpreterMessageHandlers(
       val handler = new QueueOutputHandler(message, queue, commHandlerOpt)
 
       lazy val inputManagerOpt = inputHandlerOpt.map { h =>
-        h.inputManager(message, (c, m) => queue.enqueue1((c, m)))
+        h.inputManager(message, (c, m) => queue.offer((c, m)))
       }
 
       // TODO Take message.content.silent into account
@@ -223,11 +224,13 @@ object InterpreterMessageHandlers {
     commHandlerOpt: Option[CommHandler]
   ) extends OutputHandler {
 
-    private def print(on: String, s: String): Unit =
+    private def print(on: String, s: String): Unit = {
+      import cats.effect.unsafe.implicits.global
       message
         .publish(Execute.streamType, Execute.Stream(name = on, text = s), ident = Some(on))
         .enqueueOn(Channel.Publish, queue)
         .unsafeRunSync()
+    }
 
     def stdout(s: String): Unit =
       print("stdout", s)
@@ -241,7 +244,8 @@ object InterpreterMessageHandlers {
         data.jsonMetadata,
         Execute.DisplayData.Transient(data.idOpt)
       )
-
+ 
+      import cats.effect.unsafe.implicits.global
       message
         .publish(Execute.displayDataType, content)
         .enqueueOn(Channel.Publish, queue)
